@@ -1,0 +1,131 @@
+---
+- hosts: localhost
+  sudo: yes
+  any_errors_fatal: true
+
+  vars:
+    phpinilist:
+      - { regexp: '(?i)^;?display_errors\s*=', line: "display_errors = On" }
+      - { regexp: '(?i)^;?cgi.fix_pathinfo\s*=', line: "cgi.fix_pathinfo = 0" }
+      - { regexp: '(?i)^;?date.timezone\s*=', line: "date.timezone = Europe/Moscow" }
+
+  tasks:
+    - name: "Additional locales"
+      locale_gen: name="ru_RU.UTF-8" state=present
+    - name: "New repository for PHP7"
+      apt_repository: repo="ppa:ondrej/php"
+    - name: "New repository for PostgreSQL"
+      apt_key: url="https://www.postgresql.org/media/keys/ACCC4CF8.asc"
+    - apt_repository: repo="deb http://apt.postgresql.org/pub/repos/apt/ trusty-pgdg main"
+
+    - apt: update_cache=yes cache_valid_time=86400
+
+    - name: "Installing system packages"
+      apt:
+        name:
+          - wget
+          - git
+          - unzip
+
+    - name: "Installing PosrgeSQL 9.5"
+      apt: name="postgresql-9.5"
+    - name: "Postgresql package for Ansible"
+      apt: name="python-psycopg2"
+    - name: "Postgresql user 'vagrant' with password 'vagrant'"
+      postgresql_user: name="vagrant" password="vagrant"
+      sudo_user: postgres
+    - name: "Postgresql database 'vagrant' with en_US.UTF-8 locale"
+      postgresql_db: encoding=UTF-8 lc_collate=en_US.UTF-8 lc_ctype=en_US.UTF-8 name=vagrant owner=vagrant template=template0
+      sudo_user: postgres
+    - name: "Postgresql 'postgres' user password = 'vagrant'"
+      postgresql_user: name="postgres" password="vagrant"
+      sudo_user: postgres
+    - name: "Postgresql listen all intrefaces (for connect from host machine)"
+      lineinfile: dest=/etc/postgresql/9.5/main/postgresql.conf state=present regexp='(?i)^#?listen_addresses\s*=' line="listen_addresses = '*'"
+      notify:
+        - restart postgresql
+    - name: "Postgresql allow password auth from any IP addresses"
+      lineinfile: dest=/etc/postgresql/9.5/main/pg_hba.conf state=present line="host all all all md5"
+      notify:
+        - restart postgresql
+
+
+    - name: "Installing PHP 7.0"
+      apt:
+        name:
+          - php7.0-fpm
+          - php7.0-cli
+          - php7.0-mcrypt
+          - php7.0-readline
+          - php7.0-pgsql
+          - php7.0-json
+          - php7.0-opcache
+          - php-xdebug
+          - php-redis
+          - php7.0-mbstring
+    - name: "Fix FPM php.ini"
+      lineinfile: dest=/etc/php/7.0/fpm/php.ini state=present regexp="{{ item.regexp }}" line="{{ item.line }}"
+      with_items: phpinilist
+      notify:
+        - restart php
+    - name: "Fix CLI php.ini"
+      lineinfile: dest=/etc/php/7.0/cli/php.ini state=present regexp="{{ item.regexp }}" line="{{ item.line }}"
+      with_items: phpinilist
+    - name: "Remove default www pool from php-fpm"
+      file: path=/etc/php/7.0/fpm/pool.d/www.conf state=absent
+      notify:
+        - restart php
+    - name: "Setup new php-fpm pool"
+      ini_file: dest=/etc/php/7.0/fpm/pool.d/vagrant.conf section=vagrant option="{{ item.key }}" value="{{ item.value }}"
+      with_dict:
+        user: vagrant
+        group: vagrant
+        listen: 0.0.0.0:7000
+        pm: static
+        pm.max_children: 4
+        pm.max_requests: 10000
+        request_terminate_timeout: 62
+      notify:
+        - restart php
+    - name: "Enable Remote Xdebug"
+      ini_file: dest=/etc/php/7.0/fpm/conf.d/20-xdebug-config.ini section=xdebug option="{{ item.key }}" value="{{ item.value }}"
+      with_dict:
+        xdebug.remote_enable: on
+        xdebug.remote_host: "localhost"
+        xdebug.remote_port: 9000
+        xdebug.remote_connect_back: on
+      notify:
+        - restart php
+    - name: "And remove xdebug for cli"
+      file: path=/etc/php/7.0/cli/conf.d/20-xdebug.ini state=absent
+      notify:
+        - restart php
+
+    - name: "Install nginx (from ubuntu's repo)"
+      apt: name="nginx"
+    - name: "Remove default nginx config"
+      file: path=/etc/nginx/sites-enabled/default state=absent
+      notify:
+        - restart nginx
+    - file: path=/etc/nginx/sites-available/default state=absent
+    - name: "Copy nginx prepared config"
+      template: src=templates/nginx.conf dest=/etc/nginx/conf.d/vagrant.conf
+      notify:
+        - restart nginx
+
+    - name: "Is composer installed?"
+      stat: path=/home/vagrant/bin/composer
+      register: composer_stat
+    - name: "Install composer"
+      shell: sh /vagrant/vagrantup/composer_install.sh
+      sudo: no
+      when: composer_stat.stat.exists == False
+
+
+  handlers:
+    - name: restart php
+      service: name=php7.0-fpm state=restarted
+    - name: restart nginx
+      service: name=nginx state=restarted
+    - name: restart postgresql
+      service: name=postgresql state=restarted
