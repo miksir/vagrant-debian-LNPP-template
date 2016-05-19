@@ -63,6 +63,8 @@
           - php-xdebug
           - php-redis
           - php7.0-mbstring
+      notify:
+        - restart php
     - name: "Fix FPM php.ini"
       lineinfile: dest=/etc/php/7.0/fpm/php.ini state=present regexp="{{ item.regexp }}" line="{{ item.line }}"
       with_items: phpinilist
