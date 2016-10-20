@@ -8,10 +8,11 @@
       - { regexp: '(?i)^;?display_errors\s*=', line: "display_errors = On" }
       - { regexp: '(?i)^;?cgi.fix_pathinfo\s*=', line: "cgi.fix_pathinfo = 0" }
       - { regexp: '(?i)^;?date.timezone\s*=', line: "date.timezone = Europe/Moscow" }
+    pglocale: ru_RU.UTF-8
 
   tasks:
     - name: "Additional locales"
-      locale_gen: name="ru_RU.UTF-8" state=present
+      locale_gen: name="{{ pglocale }}" state=present
     - name: "New repository for PHP7"
       apt_repository: repo="ppa:ondrej/php"
     - name: "New repository for PostgreSQL"
@@ -34,8 +35,8 @@
     - name: "Postgresql user 'vagrant' with password 'vagrant'"
       postgresql_user: name="vagrant" password="vagrant"
       sudo_user: postgres
-    - name: "Postgresql database 'vagrant' with en_US.UTF-8 locale"
-      postgresql_db: encoding=UTF-8 lc_collate=en_US.UTF-8 lc_ctype=en_US.UTF-8 name=vagrant owner=vagrant template=template0
+    - name: "Postgresql database 'vagrant' with {{ pglocale }} locale"
+      postgresql_db: encoding=UTF-8 lc_collate={{ pglocale }} lc_ctype={{ pglocale }} name=vagrant owner=vagrant template=template0
       sudo_user: postgres
     - name: "Postgresql 'postgres' user password = 'vagrant'"
       postgresql_user: name="postgres" password="vagrant"
@@ -45,7 +46,7 @@
       notify:
         - restart postgresql
     - name: "Postgresql allow password auth from any IP addresses"
-      lineinfile: dest=/etc/postgresql/9.5/main/pg_hba.conf state=present line="host all all all md5"
+      lineinfile: dest=/etc/postgresql/9.5/main/pg_hba.conf state=present regexp="(?i)^#?host[\s\t]+all[\s\t]+all[\s\t]+all[\s\t]+md5" line="host all all all md5"
       notify:
         - restart postgresql
 
@@ -61,7 +62,6 @@
           - php7.0-json
           - php7.0-opcache
           - php-xdebug
-          - php-redis
           - php7.0-mbstring
       notify:
         - restart php
@@ -122,7 +122,6 @@
       shell: sh /vagrant/vagrantup/composer_install.sh
       sudo: no
       when: composer_stat.stat.exists == False
-
 
   handlers:
     - name: restart php
