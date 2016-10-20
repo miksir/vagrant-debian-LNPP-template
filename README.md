@@ -2,15 +2,16 @@
 Template for create new PHP7 project using Vagrant based on Debian. 
 
 Can install
- * PHP 7.0 (with XDebug)
+ * Nginx
+ * PHP 7.0 (with XDebug), composer
  * Postgresql 9.5
  * Elasticsearch 2.x with Java 8
  * NodeJs 6.x
- * Yii 1
 
-Can do
+Can run
  * npm install
  * composer install
+ * webpack
 
 Ansible is not required on host machine because executed on guest.
 
