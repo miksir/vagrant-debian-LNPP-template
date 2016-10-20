@@ -1,57 +1,191 @@
 ---
 - hosts: localhost
-  sudo: yes
   any_errors_fatal: true
 
   vars:
     phpinilist:
+      - { regexp: '(?i)^;?display_errors\s*=', line: "display_errors = Off" }
+      - { regexp: '(?i)^;?cgi\.fix_pathinfo\s*=', line: "cgi.fix_pathinfo = 0" }
+      - { regexp: '(?i)^;?date\.timezone\s*=', line: "date.timezone = Europe/Moscow" }
+      - { regexp: '(?i)^;?max_execution_time\s*=', line: "max_execution_time = 600" }
+      - { regexp: '(?i)^;?max_input_time\s*=', line: "max_input_time = 600" }
+      - { regexp: '(?i)^;?memory_limit\s*=', line: "memory_limit = 256M" }
+      - { regexp: '(?i)^;?post_max_size\s*=', line: "post_max_size = 100M" }
+      - { regexp: '(?i)^;?upload_max_filesize\s*=', line: "upload_max_filesize = 100M" }
+      - { regexp: '(?i)^;?sendmail_path\s*=', line: "sendmail_path = /usr/sbin/sendmail -t -i -f '<>'" }
+    phpinilist_devonly:
       - { regexp: '(?i)^;?display_errors\s*=', line: "display_errors = On" }
-      - { regexp: '(?i)^;?cgi.fix_pathinfo\s*=', line: "cgi.fix_pathinfo = 0" }
-      - { regexp: '(?i)^;?date.timezone\s*=', line: "date.timezone = Europe/Moscow" }
-    pglocale: ru_RU.UTF-8
+      - { regexp: '(?i)^;?max_execution_time\s*=', line: "max_execution_time = 600" }
+      - { regexp: '(?i)^;?max_input_time\s*=', line: "max_input_time = 600" }
+    userlocale: "ru_RU.UTF-8"
+    baseuser: "{{ ansible_env.USER }}"
+    homedir: "{{ ansible_env.HOME }}"
+    projectdir: "{{ ansible_env.HOME }}/project"
+
+  environment:
+    LC_CTYPE: "{{ userlocale }}"
+    LC_COLLATE: "{{ userlocale }}"
 
   tasks:
     - name: "Additional locales"
-      locale_gen: name="{{ pglocale }}" state=present
-    - name: "New repository for PHP7"
-      apt_repository: repo="ppa:ondrej/php"
-    - name: "New repository for PostgreSQL"
-      apt_key: url="https://www.postgresql.org/media/keys/ACCC4CF8.asc"
-    - apt_repository: repo="deb http://apt.postgresql.org/pub/repos/apt/ trusty-pgdg main"
+      become: true
+      locale_gen: name="{{ userlocale }}" state=present
+      tags: ["always"]
+    - name: "Add default LC_CTYPE locale"
+      become: true
+      lineinfile: dest=/etc/default/locale state=present regexp="^LC_CTYPE=" line="LC_CTYPE={{ userlocale }}"
+      tags: ["always"]
+    - name: "Add default LC_COLLATE locale"
+      become: true
+      lineinfile: dest=/etc/default/locale state=present regexp="^LC_COLLATE=" line="LC_COLLATE={{ userlocale }}"
+      tags: ["always"]
 
-    - apt: update_cache=yes cache_valid_time=86400
+#    - name: "Add Debian testing repository"
+#      become: true
+#      apt_repository: repo="deb http://httpredir.debian.org/debian testing main contrib" update_cache=no
+#      tags: ["always"]
+#    - name: "Debian testing pref"
+#      become: true
+#      blockinfile:
+#        create: yes
+#        dest: /etc/apt/preferences.d/testing
+#        marker: "Explanation: {mark} ANSIBLE MANAGED BLOCK"
+#        block: |
+#          Package: *
+#          Pin: release a=testing
+#          Pin-Priority: -10
+#      tags: ["always"]
 
+    # some system packages
+    - name: "Update APT cache"
+      become: true
+      apt: update_cache=yes cache_valid_time=3600
+      tags: ["always"]
+
+    - name: "Update CA list"
+      become: true
+      apt: name=ca-certificates state=latest
+      tags: ["always"]
     - name: "Installing system packages"
+      become: true
+      apt:
+        name:
+          - apt-transport-https
+          - debconf-utils
+        state: latest
+      tags: ["always"]
+    - name: "Installing helper packages"
+      become: true
       apt:
         name:
           - wget
           - git
           - unzip
+          - screen
+          - joe
+        state: latest
+      tags: ["always"]
+#    - name: "Install python-pexpect"
+#      apt: name="python-pexpect" default_release="testing"
+#      become: true
+#      tags: ["always"]
 
+
+    # we want to collect all repository changes in one place for reduce update time
+    - name: "Repository key for PHP7"
+      become: true
+      apt_key: url="https://www.dotdeb.org/dotdeb.gpg"
+      tags: ["php7"]
+    - name: "Repository for PHP7"
+      become: true
+      apt_repository: repo="deb http://packages.dotdeb.org jessie all" update_cache=no
+      tags: ["php7"]
+    - name: "Repository key for PostgreSQL"
+      become: true
+      apt_key: url="https://www.postgresql.org/media/keys/ACCC4CF8.asc"
+      tags: ["postgresql"]
+    - name: "Repository for PostgreSQL"
+      become: true
+      apt_repository: repo="deb http://apt.postgresql.org/pub/repos/apt/ trusty-pgdg main" update_cache=no
+      tags: ["postgresql"]
+    - name: "Repository key for Elasticsearch"
+      become: true
+      apt_key: url="https://packages.elastic.co/GPG-KEY-elasticsearch"
+      tags: ["elasticsearch"]
+    - name: "Repository for Elasticsearch 2.x"
+      become: true
+      apt_repository: repo="deb https://packages.elastic.co/elasticsearch/2.x/debian stable main" update_cache=no
+      tags: ["elasticsearch"]
+    - name: "Launchpad webupd8team-java key"
+      become: true
+      apt_key: keyserver=keyserver.ubuntu.com id=0xEEA14886 keyring=/etc/apt/trusted.gpg.d/webupd8team-java.gpg
+      tags: ["elasticsearch", "java"]
+    - name: "Launchpad webupd8team-java repository"
+      become: true
+      apt_repository: repo="deb http://ppa.launchpad.net/webupd8team/java/ubuntu xenial main" update_cache=no
+      tags: ["elasticsearch", "java"]
+    - name: "Repository key for NodeJS"
+      become: true
+      apt_key: url="https://deb.nodesource.com/gpgkey/nodesource.gpg.key"
+      tags: ["nodejs"]
+    - name: "Repository for NodeJS 6.x"
+      become: true
+      apt_repository: repo="deb https://deb.nodesource.com/node_6.x jessie main" update_cache=no
+      tags: ["nodejs"]
+    - name: "Update APT cache"
+      become: true
+      apt: update_cache=yes
+      tags: ["always"]
+
+    # postgresql vibes
     - name: "Installing PosrgeSQL 9.5"
+      become: true
       apt: name="postgresql-9.5"
+      tags: ["postgresql"]
     - name: "Postgresql package for Ansible"
+      become: true
       apt: name="python-psycopg2"
-    - name: "Postgresql user 'vagrant' with password 'vagrant'"
-      postgresql_user: name="vagrant" password="vagrant"
-      sudo_user: postgres
-    - name: "Postgresql database 'vagrant' with {{ pglocale }} locale"
-      postgresql_db: encoding=UTF-8 lc_collate={{ pglocale }} lc_ctype={{ pglocale }} name=vagrant owner=vagrant template=template0
-      sudo_user: postgres
-    - name: "Postgresql 'postgres' user password = 'vagrant'"
-      postgresql_user: name="postgres" password="vagrant"
-      sudo_user: postgres
+      tags: ["postgresql"]
+    - name: "Postgresql user '{{ baseuser }}' with password '{{ baseuser }}'"
+      become: true
+      become_user: postgres
+      postgresql_user: name={{ baseuser }} password={{ baseuser }}
+      tags: ["postgresql"]
+    - name: "Postgresql database '{{ baseuser }}' with {{ userlocale }} locale"
+      become: true
+      become_user: postgres
+      postgresql_db: encoding=UTF-8 lc_collate={{ userlocale }} lc_ctype={{ userlocale }} name={{ baseuser }} owner={{ baseuser }} template=template0
+      tags: ["postgresql"]
+    - name: "Postgresql database '{{ baseuser }}_test' with {{ userlocale }} locale"
+      become: true
+      become_user: postgres
+      postgresql_db: encoding=UTF-8 lc_collate={{ userlocale }} lc_ctype={{ userlocale }} name={{ baseuser }}_test owner={{ baseuser }} template=template0
+      tags: ["postgresql", "dev"]
+    - name: "Postgresql 'postgres' user password = '{{ baseuser }}'"
+      become: true
+      become_user: postgres
+      postgresql_user: name=postgres password={{ baseuser }}
+      tags: ["postgresql", "dev"]
     - name: "Postgresql listen all intrefaces (for connect from host machine)"
+      become: true
       lineinfile: dest=/etc/postgresql/9.5/main/postgresql.conf state=present regexp='(?i)^#?listen_addresses\s*=' line="listen_addresses = '*'"
       notify:
         - restart postgresql
+      tags: ["postgresql", "dev"]
     - name: "Postgresql allow password auth from any IP addresses"
-      lineinfile: dest=/etc/postgresql/9.5/main/pg_hba.conf state=present regexp="(?i)^#?host[\s\t]+all[\s\t]+all[\s\t]+all[\s\t]+md5" line="host all all all md5"
+      become: true
+      lineinfile: dest=/etc/postgresql/9.5/main/pg_hba.conf state=present line="host all all all md5"
       notify:
         - restart postgresql
+      tags: ["postgresql", "dev"]
+    - name: "Start Postgresql"
+      become: true
+      service: name=postgresql state=started enabled=yes
+      tags: ["postgresql"]
 
-
+    # all about php7
     - name: "Installing PHP 7.0"
+      become: true
       apt:
         name:
           - php7.0-fpm
@@ -59,37 +193,90 @@
           - php7.0-mcrypt
           - php7.0-readline
           - php7.0-pgsql
+          - php7.0-mysql
           - php7.0-json
           - php7.0-opcache
-          - php-xdebug
+          - php7.0-curl
+          - php7.0-gd
+          - php7.0-imagick
+          - php7.0-intl
           - php7.0-mbstring
+          - php7.0-xml
       notify:
         - restart php
+      tags: ["php7"]
+    - name: "Installing PHP 7.0 dev extensions"
+      become: true
+      apt:
+        name:
+          - php7.0-xdebug
+      notify:
+        - restart php
+      tags: ["php7", "dev"]
     - name: "Fix FPM php.ini"
+      become: true
       lineinfile: dest=/etc/php/7.0/fpm/php.ini state=present regexp="{{ item.regexp }}" line="{{ item.line }}"
-      with_items: phpinilist
+      with_items: "{{ phpinilist }}"
       notify:
         - restart php
+      tags: ["php7"]
+    - name: "Fix FPM php.ini for dev envelopment"
+      become: true
+      lineinfile: dest=/etc/php/7.0/fpm/php.ini state=present regexp="{{ item.regexp }}" line="{{ item.line }}"
+      with_items: "{{ phpinilist_devonly }}"
+      notify:
+        - restart php
+      tags: ["php7", "dev"]
     - name: "Fix CLI php.ini"
+      become: true
       lineinfile: dest=/etc/php/7.0/cli/php.ini state=present regexp="{{ item.regexp }}" line="{{ item.line }}"
-      with_items: phpinilist
+      with_items: "{{ phpinilist }}"
+      tags: ["php7"]
+    - name: "Fix CLI php.ini for dev envelopment"
+      become: true
+      lineinfile: dest=/etc/php/7.0/cli/php.ini state=present regexp="{{ item.regexp }}" line="{{ item.line }}"
+      with_items: "{{ phpinilist_devonly }}"
+      tags: ["php7", "dev"]
+    - name: "Enable opcache"
+      become: true
+      lineinfile: dest=/etc/php/7.0/fpm/php.ini state=present regexp='(?i)^;?opcache\.enable\s*=' line="opcache.enable = 1"
+      notify:
+        - restart php
+      tags: ["php7"]
     - name: "Remove default www pool from php-fpm"
+      become: true
       file: path=/etc/php/7.0/fpm/pool.d/www.conf state=absent
       notify:
         - restart php
+      tags: ["php7"]
     - name: "Setup new php-fpm pool"
-      ini_file: dest=/etc/php/7.0/fpm/pool.d/vagrant.conf section=vagrant option="{{ item.key }}" value="{{ item.value }}"
+      become: true
+      ini_file: dest=/etc/php/7.0/fpm/pool.d/{{ baseuser }}.conf section={{ baseuser }} option="{{ item.key }}" value="{{ item.value }}"
       with_dict:
-        user: vagrant
-        group: vagrant
+        user: "{{ baseuser }}"
+        group: "{{ baseuser }}"
         listen: 0.0.0.0:7000
         pm: static
-        pm.max_children: 4
+        pm.max_children: 10
         pm.max_requests: 10000
-        request_terminate_timeout: 62
+        request_terminate_timeout: 650
       notify:
         - restart php
+      tags: ["php7"]
+    - name: "Edit php-fpm pool for dev envelopment"
+      become: true
+      ini_file: dest=/etc/php/7.0/fpm/pool.d/{{ baseuser }}.conf section={{ baseuser }} option="{{ item.key }}" value="{{ item.value }}"
+      with_dict:
+        pm: dynamic
+        pm.max_children: 5
+        pm.min_spare_servers: 2
+        pm.max_spare_servers: 4
+        request_terminate_timeout: 0
+      notify:
+        - restart php
+      tags: ["php7", "dev"]
     - name: "Enable Remote Xdebug"
+      become: true
       ini_file: dest=/etc/php/7.0/fpm/conf.d/20-xdebug-config.ini section=xdebug option="{{ item.key }}" value="{{ item.value }}"
       with_dict:
         xdebug.remote_enable: on
@@ -98,35 +285,194 @@
         xdebug.remote_connect_back: on
       notify:
         - restart php
-    - name: "And remove xdebug for cli"
+      tags: ["php7", "dev"]
+    - name: "Remove xdebug for cli"
+      become: true
       file: path=/etc/php/7.0/cli/conf.d/20-xdebug.ini state=absent
       notify:
         - restart php
+      tags: ["php7", "dev"]
+    - name: "Start PHP7"
+      become: true
+      service: name="php7.0-fpm" state=started enabled=yes
+      tags: ["php7"]
 
-    - name: "Install nginx (from ubuntu's repo)"
+    # all about nginx
+    - name: "Install nginx"
+      become: true
       apt: name="nginx"
-    - name: "Remove default nginx config"
+      tags: ["nginx"]
+    - name: "Remove default Nginx config"
+      become: true
       file: path=/etc/nginx/sites-enabled/default state=absent
       notify:
         - restart nginx
-    - file: path=/etc/nginx/sites-available/default state=absent
-    - name: "Copy nginx prepared config"
-      template: src=templates/nginx.conf dest=/etc/nginx/conf.d/vagrant.conf
+      tags: ["nginx"]
+    - name: "Copy Nginx prepared config"
+      become: true
+      template: src=templates/nginx.conf dest=/etc/nginx/conf.d/{{ baseuser }}.conf
       notify:
         - restart nginx
+      tags: ["nginx"]
+    - name: "Nginx: sendfile off for vagrant"
+      become: true
+      lineinfile: dest=/etc/nginx/nginx.conf state=present backrefs=yes regexp="^([\s\t]*)sendfile.+;$" line="\1sendfile off;"
+      notify:
+        - restart nginx
+      tags: ["nginx", "dev"]
+    - name: "Nginx: enable default gzip settings"
+      become: true
+      replace: dest=/etc/nginx/nginx.conf regexp="^([\s\t]*)#\s+(gzip_.+)" replace="\1\2"
+      notify:
+        - restart nginx
+      tags: ["nginx"]
+    - name: "Nginx: hide server token"
+      become: true
+      lineinfile: dest=/etc/nginx/nginx.conf state=present backrefs=yes regexp="^([\s\t]*)#\s+(server_tokens.+)" line="\1\2"
+      notify:
+        - restart nginx
+      tags: ["nginx"]
+    - name: "Start Nginx"
+      become: true
+      service: name=nginx state=started enabled=yes
+      tags: ["nginx"]
 
+    # Oracle java
+    - name: "Set Oracle Java licence"
+      become: true
+      shell: "echo oracle-java8-installer shared/accepted-oracle-license-v1-1 select true | debconf-set-selections"
+    - name: "Install Oracle Java installer"
+      become: true
+      apt: name="oracle-java8-installer"
+      tags: ["elasticsearch", "java"]
+
+    # Elasticsearch
+    - name: "Install elasticsearch"
+      become: true
+      apt: name="elasticsearch"
+      tags: ["elasticsearch"]
+    - name: "Allow elastic to listen all interfaces"
+      become: true
+      lineinfile:
+        dest: /etc/elasticsearch/elasticsearch.yml
+        state: present
+        regexp: '(?i)^#?\s*network.host:.*$'
+        line: 'network.host: 0.0.0.0'
+      notify:
+        - restart elasticsearch
+      tags: ["elasticsearch", "dev"]
+    - name: "Start elasticsearch"
+      become: true
+      service: name=elasticsearch state=started enabled=yes
+      tags: ["elasticsearch"]
+
+    # composer
     - name: "Is composer installed?"
-      stat: path=/home/vagrant/bin/composer
+      stat: path={{ homedir }}/bin/composer
       register: composer_stat
+      tags: ["composer"]
     - name: "Install composer"
-      shell: sh /vagrant/vagrantup/composer_install.sh
-      sudo: no
-      when: composer_stat.stat.exists == False
+      shell: "sh {{ projectdir }}/vagrantup/composer_install.sh"
+      when: "composer_stat.stat.exists == False"
+      tags: ["composer"]
+    - name: "Test composer.json exists"
+      stat: path={{ projectdir }}/composer.json
+      register: composerjson_stat
+      tags: ["composer"]
+    - name: "composer install"
+      shell: "{{ homedir }}/bin/composer install --no-interaction"
+      args:
+        chdir: "{{ projectdir }}"
+      when: "composerjson_stat.stat.exists == True"
+      register: composer_update
+      changed_when: "'Nothing to install or update' not in composer_update.stderr"
+      tags: ["composer"]
+
+    # database setup
+    # symfony migration
+#    - name: "Run database Symfony migrations"
+#      shell: "php app/console doctrine:migrations:migrate --no-interaction"
+#      args:
+#        chdir: "{{ projectdir }}"
+#      register: migrate_run
+#      changed_when: "'No migrations to execute' not in migrate_run.stdout"
+#      failed_when: false
+#      tags: ["migration"]
+#    - name: "Load SQL dump using psql"
+#      shell: "psql < {{ projectdir }}/schema.sql"
+#      tags: ["migration"]
+
+    # nodeJS and webpack
+    - name: "Install NodeJs 6"
+      become: true
+      apt: name="nodejs"
+      tags: ["nodejs"]
+    - name: "Test package.json exists"
+      stat: path={{ projectdir }}/package.json
+      register: packagejson_stat
+      tags: ["nodejs"]
+    - name: "NPM install"
+      shell: "npm i --no-bin-links || npm i --no-bin-links"
+      args:
+        chdir: "{{ projectdir }}"
+      register: npm_update
+      changed_when: "npm_update.stdout"
+      when: "packagejson_stat.stat.exists == True"
+      tags: ["nodejs"]
+    - name: "NPM rebuild sass"
+      shell: "npm rebuild node-sass"
+      args:
+        chdir: "{{ projectdir }}"
+      register: npm_sass_update
+      changed_when: "'Start downloading' in npm_sass_update.stdout"
+      tags: ["nodejs-saas", "dev"]
+    - name: "Symlink to webpack"
+      file: src={{ projectdir }}/node_modules/webpack/bin/webpack.js state=link dest={{ homedir }}/bin/webpack force=yes
+      tags: ["nodejs"]
+    - name: "Test webpack.config.js exists"
+      stat: path={{ projectdir }}/webpack.config.js
+      register: webpackconfig_stat
+      tags: ["nodejs"]
+    - name: "Run webpack for first build"
+      shell: "{{ homedir }}/bin/webpack"
+      args:
+        chdir: "{{ projectdir }}"
+      register: webpack_start
+      when: "webpackconfig_stat.stat.exists == True"
+      changed_when: true
+      failed_when: 'webpack_start.rc'
+      tags: ["nodejs"]
+#    - name: "Symlink to better-npm-run"
+#      file: src={{ projectdir }}/node_modules/better-npm-run/index.js state=link dest={{ homedir }}/bin/better-npm-run force=yes
+#      tags: ["nodejs"]
+#    - name: "Copy application config"
+#      template: src={{ projectdir }}/vagrantup/templates/personal-config.js dest={{ projectdir }}/src/config/personal-config.js
+#      tags: ["nodejs", "dev"]
+
+    # yii1 framefork
+    - name: "Check Yii1 framework 1.1.17"
+      stat: path={{ homedir }}/yii
+      register: yii
+      tags: ["yii1"]
+    - name: "Install Yii1 framework 1.1.17"
+      git: repo=https://github.com/yiisoft/yii.git dest={{ homedir }}/yii-1.1.17 version=1.1.17
+      when: yii.stat.islnk is not defined
+      tags: ["yii1"]
+    - name: "Link Yii1 framework"
+      file: src={{ homedir }}/yii-1.1.17/framework state=link path={{ homedir }}/yii force=yes
+      when: yii.stat.islnk is not defined
+      tags: ["yii1"]
 
   handlers:
     - name: restart php
+      become: true
       service: name=php7.0-fpm state=restarted
     - name: restart nginx
+      become: true
       service: name=nginx state=restarted
     - name: restart postgresql
+      become: true
       service: name=postgresql state=restarted
+    - name: restart elasticsearch
+      become: true
+      service: name=elasticsearch state=restarted

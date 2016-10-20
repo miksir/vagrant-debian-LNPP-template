@@ -1,10 +1,10 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
-mkdir /home/vagrant/bin 2>/dev/null
+mkdir ~/bin 2>/dev/null
 
-cd /home/vagrant/bin && \
+cd ~/bin && \
   wget https://getcomposer.org/installer && \
-  php installer -- --install-dir=/home/vagrant/bin --filename=composer && \
+  php installer -- --install-dir=$HOME/bin --filename=composer && \
   chmod 755 composer
 
 rm installer 2>/dev/null
