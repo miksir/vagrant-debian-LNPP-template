@@ -375,10 +375,16 @@
       shell: "sh {{ projectdir }}/vagrantup/composer_install.sh"
       when: "composer_stat.stat.exists == False"
       tags: ["composer"]
+    # yii2 fix
+    - name: "Yii2 composer fix"
+      shell: "{{ homedir }}/bin/composer global require \"fxp/composer-asset-plugin:^1.2.0\""
+      register: yii2_composer_stat
+      changed_when: "'Nothing to install or update' not in yii2_composer_stat.stderr"
+      tags: ["yii2"]
     - name: "Test composer.json exists"
       stat: path={{ projectdir }}/composer.json
       register: composerjson_stat
-      tags: ["composer"]
+      tags: ["composer_install"]
     - name: "composer install"
       shell: "{{ homedir }}/bin/composer install --no-interaction"
       args:
@@ -386,7 +392,7 @@
       when: "composerjson_stat.stat.exists == True"
       register: composer_update
       changed_when: "'Nothing to install or update' not in composer_update.stderr"
-      tags: ["composer"]
+      tags: ["composer_install"]
 
     # database setup
     # symfony migration

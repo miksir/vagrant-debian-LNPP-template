@@ -24,13 +24,15 @@ Supported tags
 - `elasticsearch` - install Elasticsearch + Oracle Java 8
 - `java` - install Oracle Java 8
 - `nginx` - install nginx, edit config and install project config from template
-- `composer` - install composer and run `composer install`
+- `composer` - install composer 
+- `composer_install` - run `composer install` (`composer` required) if `composer.json` exists
 - `migration` - different types of database setup, all commented, 
 uncomment and edit what you want
 - `nodejs` - install nodejs, run `npm i` if `package.json` exists, 
 run `webpack` if `webpack.config.js` exists
 - `nodejs-saas` - if SAAS processor used, prepare it for dev
 - `yii1` - checkout Yii1 from Yii's git
+- `yii2` - install fxp/composer-asset-plugin (composer required)
 
 Special tag `dev` - exclude this tag to setup production  
 
