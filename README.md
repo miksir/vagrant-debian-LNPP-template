@@ -28,9 +28,10 @@ Supported tags
 - `composer_install` - run `composer install` (`composer` required) if `composer.json` exists
 - `migration` - different types of database setup, all commented, 
 uncomment and edit what you want
-- `nodejs` - install nodejs, run `npm i` if `package.json` exists, 
-run `webpack` if `webpack.config.js` exists
+- `nodejs` - install nodejs 
 - `nodejs-saas` - if SAAS processor used, prepare it for dev
+- `npm_install` - run `npm i` if `package.json` exists
+- `webpack` - run `webpack` if `webpack.config.js` exists
 - `yii1` - checkout Yii1 from Yii's git
 - `yii2` - install fxp/composer-asset-plugin (composer required)
 
