@@ -98,14 +98,14 @@
 
 
     # we want to collect all repository changes in one place for reduce update time
-    - name: "Repository key for PHP7"
+    - name: "Dotdeb Repository key"
       become: true
       apt_key: url="https://www.dotdeb.org/dotdeb.gpg"
-      tags: ["php7"]
-    - name: "Repository for PHP7"
+      tags: ["php7", "dotdeb"]
+    - name: "Dotdeb Repository"
       become: true
       apt_repository: repo="deb http://packages.dotdeb.org jessie all" update_cache=no
-      tags: ["php7"]
+      tags: ["php7", "dotdeb"]
     - name: "Repository key for PostgreSQL"
       become: true
       apt_key: url="https://www.postgresql.org/media/keys/ACCC4CF8.asc"
@@ -144,9 +144,9 @@
       tags: ["always"]
 
     # postgresql vibes
-    - name: "Installing PosrgeSQL 9.5"
+    - name: "Installing PosrgeSQL 9.6"
       become: true
-      apt: name="postgresql-9.5"
+      apt: name="postgresql-9.6"
       tags: ["postgresql"]
     - name: "Postgresql package for Ansible"
       become: true
@@ -174,13 +174,13 @@
       tags: ["postgresql", "dev"]
     - name: "Postgresql listen all intrefaces (for connect from host machine)"
       become: true
-      lineinfile: dest=/etc/postgresql/9.5/main/postgresql.conf state=present regexp='(?i)^#?listen_addresses\s*=' line="listen_addresses = '*'"
+      lineinfile: dest=/etc/postgresql/9.6/main/postgresql.conf state=present regexp='(?i)^#?listen_addresses\s*=' line="listen_addresses = '*'"
       notify:
         - restart postgresql
       tags: ["postgresql", "dev"]
     - name: "Postgresql allow password auth from any IP addresses"
       become: true
-      lineinfile: dest=/etc/postgresql/9.5/main/pg_hba.conf state=present line="host all all all md5"
+      lineinfile: dest=/etc/postgresql/9.6/main/pg_hba.conf state=present line="host all all all md5"
       notify:
         - restart postgresql
       tags: ["postgresql", "dev"]
@@ -188,6 +188,10 @@
       become: true
       service: name=postgresql state=started enabled=yes
       tags: ["postgresql"]
+
+    - name: "Install Redis server"
+      apt: name=redis-server
+      tags: ["redis"]
 
     # all about php7
     - name: "Installing PHP 7.0"
@@ -198,8 +202,6 @@
           - php7.0-cli
           - php7.0-mcrypt
           - php7.0-readline
-          - php7.0-pgsql
-          - php7.0-mysql
           - php7.0-json
           - php7.0-opcache
           - php7.0-curl
@@ -211,6 +213,18 @@
       notify:
         - restart php
       tags: ["php7"]
+    - name: "Installing PHP 7.0 PG extension"
+      become: true
+      apt: name="php7.0-pgsql"
+      notify:
+        - restart php
+      tags: ["php7_pgsql"]
+    - name: "Installing PHP 7.0 Redis extension"
+      become: true
+      apt: name="php7.0-redis"
+      notify:
+        - restart php
+      tags: ["php7_redis"]
     - name: "Installing PHP 7.0 dev extensions"
       become: true
       apt:
@@ -365,6 +379,9 @@
     - name: "Set Oracle Java licence"
       become: true
       shell: "echo oracle-java8-installer shared/accepted-oracle-license-v1-1 select true | debconf-set-selections"
+      tags: ["elasticsearch", "java"]
+    - debug: msg="***** Next action (java install) can take a long time (>5 min) *****"
+      tags: ["elasticsearch", "java"]
     - name: "Install Oracle Java installer"
       become: true
       apt: name="oracle-java8-installer"
@@ -409,6 +426,8 @@
       stat: path={{ projectdir }}/composer.json
       register: composerjson_stat
       tags: ["composer_install"]
+    - debug: msg="***** Next action (composer install) can take a long time (>5 min) *****"
+      tags: ["composer_install"]
     - name: "composer install"
       shell: "{{ homedir }}/bin/composer install --no-interaction"
       args:
@@ -440,6 +459,8 @@
     - name: "Test package.json exists"
       stat: path={{ projectdir }}/package.json
       register: packagejson_stat
+      tags: ["npm_install"]
+    - debug: msg="***** Next action (npm install) can take a long time *****"
       tags: ["npm_install"]
     - name: "NPM install"
       shell: "npm i --no-bin-links || npm i --no-bin-links"
