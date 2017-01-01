@@ -1,4 +1,6 @@
-.idea/
-.vagrant/
-vagrantup/ansible/
-vagrantup/provisioning.retry
+/.idea/*
+!/.idea/workspace.xml
+!/.idea/tasks.xml
+/.vagrant/
+/vagrantup/ansible/
+/vagrantup/provisioning.retry
