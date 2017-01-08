@@ -285,7 +285,7 @@
       tags: ["php7"]
     - name: "Setup new php-fpm pool for prod envelopment"
       become: true
-      ini_file: dest=/etc/php/7.0/fpm/pool.d/{{ baseuser }}.conf section={{ baseuser }} option="{{ item.key }}" value="{{ item.value }}"
+      ini_file: dest=/etc/php/7.0/fpm/pool.d/{{ baseuser }}.conf section={{ baseuser }} option="{{ item.key }}" value="{{ item.value }}" create=yes
       with_dict:
         user: "{{ baseuser }}"
         group: "{{ baseuser }}"
@@ -300,7 +300,7 @@
       when: prod_env | bool
     - name: "Edit php-fpm pool for dev envelopment"
       become: true
-      ini_file: dest=/etc/php/7.0/fpm/pool.d/{{ baseuser }}.conf section={{ baseuser }} option="{{ item.key }}" value="{{ item.value }}"
+      ini_file: dest=/etc/php/7.0/fpm/pool.d/{{ baseuser }}.conf section={{ baseuser }} option="{{ item.key }}" value="{{ item.value }}" create=yes
       with_dict:
         user: "{{ baseuser }}"
         group: "{{ baseuser }}"
@@ -315,7 +315,7 @@
       tags: ["php7", "dev"]
     - name: "Enable Remote Xdebug"
       become: true
-      ini_file: dest=/etc/php/7.0/fpm/conf.d/20-xdebug-config.ini section=xdebug option="{{ item.key }}" value="{{ item.value }}"
+      ini_file: dest=/etc/php/7.0/fpm/conf.d/20-xdebug-config.ini section=xdebug option="{{ item.key }}" value="{{ item.value }}" create=yes
       with_dict:
         xdebug.remote_enable: on
         xdebug.remote_host: "localhost"
