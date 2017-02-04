@@ -138,10 +138,19 @@
       become: true
       apt_repository: repo="deb https://deb.nodesource.com/node_6.x jessie main" update_cache=no
       tags: ["nodejs"]
+    - name: "Yarn key"
+      become: true
+      apt_key: url="https://dl.yarnpkg.com/debian/pubkey.gpg"
+      tags: ["yarn"]
+    - name: "Repository for Yarn"
+      become: true
+      apt_repository: repo="deb https://dl.yarnpkg.com/debian/ stable main" update_cache=no
+      tags: ["yarn"]
     - name: "Update APT cache"
       become: true
       apt: update_cache=yes
       tags: ["always"]
+
 
     # postgresql vibes
     - name: "Installing PosrgeSQL 9.6"
@@ -210,18 +219,19 @@
           - php7.0-intl
           - php7.0-mbstring
           - php7.0-xml
+        state: latest
       notify:
         - restart php
       tags: ["php7"]
     - name: "Installing PHP 7.0 PG extension"
       become: true
-      apt: name="php7.0-pgsql"
+      apt: name="php7.0-pgsql" state=latest
       notify:
         - restart php
       tags: ["php7_pgsql"]
     - name: "Installing PHP 7.0 Redis extension"
       become: true
-      apt: name="php7.0-redis"
+      apt: name="php7.0-redis" state=latest
       notify:
         - restart php
       tags: ["php7_redis"]
@@ -230,6 +240,7 @@
       apt:
         name:
           - php7.0-xdebug
+        state: latest
       notify:
         - restart php
       tags: ["php7", "dev"]
@@ -416,103 +427,29 @@
       shell: "sh {{ projectdir }}/vagrantup/composer_install.sh"
       when: "composer_stat.stat.exists == False"
       tags: ["composer"]
+    - name: "Composer self update"
+      shell: "{{ homedir }}/bin/composer selfupdate"
+      register: composer_selfupdate
+      when: "composer_stat.stat.exists == True"
+      tags: ["composer"]
+      changed_when: "'You are already using composer' not in composer_selfupdate.stdout"
+
     # yii2 fix
     - name: "Yii2 composer fix"
       shell: "{{ homedir }}/bin/composer global require \"fxp/composer-asset-plugin:^1.2.0\""
       register: yii2_composer_stat
       changed_when: "'Nothing to install or update' not in yii2_composer_stat.stderr"
       tags: ["yii2"]
-    - name: "Test composer.json exists"
-      stat: path={{ projectdir }}/composer.json
-      register: composerjson_stat
-      tags: ["composer_install"]
-    - debug: msg="***** Next action (composer install) can take a long time (>5 min) *****"
-      tags: ["composer_install"]
-    - name: "composer install"
-      shell: "{{ homedir }}/bin/composer install --no-interaction"
-      args:
-        chdir: "{{ projectdir }}"
-      when: "composerjson_stat.stat.exists == True"
-      register: composer_update
-      changed_when: "'Nothing to install or update' not in composer_update.stderr"
-      tags: ["composer_install"]
 
-    # database setup
-    # symfony migration
-#    - name: "Run database Symfony migrations"
-#      shell: "php app/console doctrine:migrations:migrate --no-interaction"
-#      args:
-#        chdir: "{{ projectdir }}"
-#      register: migrate_run
-#      changed_when: "'No migrations to execute' not in migrate_run.stdout"
-#      failed_when: false
-#      tags: ["migration"]
-#    - name: "Load SQL dump using psql"
-#      shell: "psql < {{ projectdir }}/schema.sql"
-#      tags: ["migration"]
-
-    # nodeJS and webpack
+    # nodeJS
     - name: "Install NodeJs 6"
       become: true
-      apt: name="nodejs"
+      apt: name="nodejs" state=latest
       tags: ["nodejs"]
-    - name: "Test package.json exists"
-      stat: path={{ projectdir }}/package.json
-      register: packagejson_stat
-      tags: ["npm_install"]
-    - debug: msg="***** Next action (npm install) can take a long time *****"
-      tags: ["npm_install"]
-    - name: "NPM install"
-      shell: "npm i --no-bin-links || npm i --no-bin-links"
-      args:
-        chdir: "{{ projectdir }}"
-      register: npm_update
-      changed_when: "npm_update.stdout"
-      when: "packagejson_stat.stat.exists == True"
-      tags: ["npm_install"]
-    - name: "NPM rebuild sass"
-      shell: "npm rebuild node-sass"
-      args:
-        chdir: "{{ projectdir }}"
-      register: npm_sass_update
-      changed_when: "'Start downloading' in npm_sass_update.stdout"
-      tags: ["nodejs-saas", "dev"]
-    - name: "Symlink to webpack"
-      file: src={{ projectdir }}/node_modules/webpack/bin/webpack.js state=link dest={{ homedir }}/bin/webpack force=yes
-      tags: ["webpack"]
-    - name: "Test webpack.config.js exists"
-      stat: path={{ projectdir }}/webpack.config.js
-      register: webpackconfig_stat
-      tags: ["webpack"]
-    - name: "Run webpack for first build"
-      shell: "{{ homedir }}/bin/webpack"
-      args:
-        chdir: "{{ projectdir }}"
-      register: webpack_start
-      when: "webpackconfig_stat.stat.exists == True"
-      changed_when: true
-      failed_when: 'webpack_start.rc'
-      tags: ["webpack"]
-#    - name: "Symlink to better-npm-run"
-#      file: src={{ projectdir }}/node_modules/better-npm-run/index.js state=link dest={{ homedir }}/bin/better-npm-run force=yes
-#      tags: ["nodejs"]
-#    - name: "Copy application config"
-#      template: src={{ projectdir }}/vagrantup/templates/personal-config.js dest={{ projectdir }}/src/config/personal-config.js
-#      tags: ["nodejs", "dev"]
-
-    # yii1 framefork
-    - name: "Check Yii1 framework 1.1.17"
-      stat: path={{ homedir }}/yii
-      register: yii
-      tags: ["yii1"]
-    - name: "Install Yii1 framework 1.1.17"
-      git: repo=https://github.com/yiisoft/yii.git dest={{ homedir }}/yii-1.1.17 version=1.1.17
-      when: yii.stat.islnk is not defined
-      tags: ["yii1"]
-    - name: "Link Yii1 framework"
-      file: src={{ homedir }}/yii-1.1.17/framework state=link path={{ homedir }}/yii force=yes
-      when: yii.stat.islnk is not defined
-      tags: ["yii1"]
+    - name: "Install Yarn"
+      become: true
+      apt: name="yarn" state=latest
+      tags: ["yarn"]
 
   handlers:
     - name: restart php

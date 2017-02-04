@@ -4,35 +4,29 @@ Template for create new PHP7 project using Vagrant based on Debian.
 Can install
  * Nginx
  * PHP 7.0 (with XDebug), composer
- * Postgresql 9.5
+ * Postgresql 9.6
  * Elasticsearch 2.x with Java 8
  * NodeJs 6.x
 
 Can run
  * npm install
  * composer install
- * webpack
+ * webpack, etc
 
 Ansible is not required on host machine because executed on guest.
 
-Edit `/vagrantup/provisioning.yml` and uncomment required or use tags.
 
 Supported tags
 --------------
-- `php7`
-- `postgresql`
+- `dotdeb` - add Dotdeb repository
+- `php7` - add Dotdeb repository and install PHP7.0
+- `postgresql` - add postgresql repo and install Postgresql 9.6
 - `elasticsearch` - install Elasticsearch + Oracle Java 8
 - `java` - install Oracle Java 8
 - `nginx` - install nginx, edit config and install project config from template
 - `composer` - install composer 
-- `composer_install` - run `composer install` (`composer` required) if `composer.json` exists
-- `migration` - different types of database setup, all commented, 
-uncomment and edit what you want
 - `nodejs` - install nodejs 
-- `nodejs-saas` - if SAAS processor used, prepare it for dev
-- `npm_install` - run `npm i` if `package.json` exists
-- `webpack` - run `webpack` if `webpack.config.js` exists
-- `yii1` - checkout Yii1 from Yii's git
+- `yarn` - install yarn
 - `yii2` - install fxp/composer-asset-plugin (composer required)
 
 Special tag `dev` - exclude this tag to setup production  
@@ -43,22 +37,23 @@ You can always list all tags with command
 Startup playbook
 ----------------
 For start some daemons on boot separate playbook created: `startup.yml` 
-This playbook can be started from `Vagrantfile` with tags:
-- `webpack-watch` - in dev mode only, run `webpack watch` on each boot of virtual machine if
-`webpack.config.js` exists
-- `nodejs-server` - start `nodejs server.js` on each boot of virtual machine if
-`server.js` exists
+
+
+Project prepare playbook
+---------------------------
+This playbook can install composer, npm and much more. Open and edit it.
+This playbook disabled in `Vagrantfile`. If you want to execute it, run
+`vagrant provision --provision-with=setup`
 
 
 Installation
 ------------
 - copy this template to your project
 - edit hostname in `Vagrantfile`, check and edit/remove forwarded ports
-- edit `vagrantup/provisioning.yml` (ansible playbook), comment, uncomment, etc
+- check `vagrantup/provisioning.yml`
 - edit `vagrantup/ansible_tags.yml`, comment/uncomment required options
 - edit `vagrantup/templates/nginx.conf`
-- check `vagrantup/startup.yml`, if some services required - add its tags to `Vagrantfile` 
-(default `--tags=untagged`)
+- check `vagrantup/startup.yml`, if some services required - add it
 - `vagrant up`
 
 Symlinks check

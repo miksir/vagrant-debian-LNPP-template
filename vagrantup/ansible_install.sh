@@ -19,8 +19,11 @@ if [ ! -e /usr/bin/ansible ]; then
     sudo sh -c "echo deb http://ftp.debian.org/debian jessie-backports main >>/etc/apt/sources.list"
     export DEBIAN_FRONTEND=noninteractive
     sudo apt-get -qq -y update
-    sudo apt-get -qq -t jessie-backports -y install ansible
+    sudo apt-get -qq -t jessie-backports -y install ansible >/dev/null
     sudo sh -c "echo localhost ansible_connection=local >>/etc/ansible/hosts"
+else
+    sudo apt-get -qq -y update
+    sudo apt-get -qq -t jessie-backports -y install ansible >/dev/null
 fi
 
 # temp directory for ansible must be on same mount as templates
