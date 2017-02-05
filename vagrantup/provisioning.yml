@@ -20,6 +20,7 @@
     baseuser: "{{ ansible_env.USER }}"
     homedir: "{{ ansible_env.HOME }}"
     projectdir: "{{ ansible_env.HOME }}/project"
+    sqlpassword: "{{ ansible_env.USER }}"
 
   environment:
     LC_CTYPE: "{{ userlocale }}"
@@ -114,6 +115,26 @@
       become: true
       apt_repository: repo="deb http://apt.postgresql.org/pub/repos/apt/ trusty-pgdg main" update_cache=no
       tags: ["postgresql"]
+    - name: "MySQL key"
+      become: true
+      apt_key: keyserver=pgp.mit.edu id=5072E1F5 keyring=/etc/apt/trusted.gpg.d/mysql.gpg
+      tags: ["mysql56", "mysql57"]
+    - name: "MySQL 5.6 repository exists"
+      become: true
+      apt_repository: repo="deb http://repo.mysql.com/apt/debian/ jessie mysql-5.6" update_cache=no
+      tags: ["mysql56"]
+    - name: "MySQL 5.6 repository not exists"
+      become: true
+      apt_repository: repo="deb http://repo.mysql.com/apt/debian/ jessie mysql-5.6" state=absent update_cache=no
+      tags: ["mysql57"]
+    - name: "MySQL 5.7 repository exists"
+      become: true
+      apt_repository: repo="deb http://repo.mysql.com/apt/debian/ jessie mysql-5.7" update_cache=no
+      tags: ["mysql57"]
+    - name: "MySQL 5.7 repository not exists"
+      become: true
+      apt_repository: repo="deb http://repo.mysql.com/apt/debian/ jessie mysql-5.7" state=absent update_cache=no
+      tags: ["mysql56"]
     - name: "Repository key for Elasticsearch"
       become: true
       apt_key: url="https://packages.elastic.co/GPG-KEY-elasticsearch"
@@ -161,10 +182,14 @@
       become: true
       apt: name="python-psycopg2"
       tags: ["postgresql"]
-    - name: "Postgresql user '{{ baseuser }}' with password '{{ baseuser }}'"
+    - name: "Start Postgresql"
+      become: true
+      service: name=postgresql state=started enabled=yes
+      tags: ["postgresql"]
+    - name: "Postgresql user '{{ baseuser }}' with password '{{ sqlpassword }}'"
       become: true
       become_user: postgres
-      postgresql_user: name={{ baseuser }} password={{ baseuser }}
+      postgresql_user: name={{ baseuser }} password={{ sqlpassword }}
       tags: ["postgresql"]
     - name: "Postgresql database '{{ baseuser }}' with {{ userlocale }} locale"
       become: true
@@ -176,10 +201,10 @@
       become_user: postgres
       postgresql_db: encoding=UTF-8 lc_collate={{ userlocale }} lc_ctype={{ userlocale }} name={{ baseuser }}_test owner={{ baseuser }} template=template0
       tags: ["postgresql", "dev"]
-    - name: "Postgresql 'postgres' user password = '{{ baseuser }}'"
+    - name: "Postgresql 'postgres' user password = '{{ sqlpassword }}'"
       become: true
       become_user: postgres
-      postgresql_user: name=postgres password={{ baseuser }}
+      postgresql_user: name=postgres password={{ sqlpassword }}
       tags: ["postgresql", "dev"]
     - name: "Postgresql listen all intrefaces (for connect from host machine)"
       become: true
@@ -193,13 +218,86 @@
       notify:
         - restart postgresql
       tags: ["postgresql", "dev"]
-    - name: "Start Postgresql"
-      become: true
-      service: name=postgresql state=started enabled=yes
-      tags: ["postgresql"]
 
+    # mysql
+    - name: "Installing MySQL"
+      become: true
+      apt: name="mysql-community-server"
+      tags: ["mysql56", "mysql57"]
+    - name: "MySQL package for Ansible"
+      become: true
+      apt: name="python-mysqldb"
+      tags: ["mysql56", "mysql57"]
+    - name: "Start MySQL"
+      become: true
+      service: name=mysql state=started enabled=yes
+      tags: ["mysql56", "mysql57"]
+    - name: "MySQL test empty root password"
+      mysql_user : name=root login_user=root login_password=""
+      ignore_errors: yes
+      register: mysqlroot_test
+      tags: ["mysql56"]
+    - name: "MySQL generate root password for local access"
+      shell: </dev/urandom tr -dc '1234567890!@#$%qwertyuiopQWERTYUIOPasdfghjklASDFGHJKLzxcvbnmZXCVBNM' | head -c25
+      register: mysqlroot_passwd
+      changed_when: false
+      tags: ["mysql56"]
+    - name: "MySQL create /root/.my.cnf file with password"
+      ini_file: dest="/root/.my.cnf" section="client" option="{{ item.key }}" value="{{ item.value }}" create=yes
+      with_dict:
+        user: "root"
+        password: "\"{{ mysqlroot_passwd.stdout|default() }}\""
+      become: true
+      when: mysqlroot_test|succeeded
+      tags: ["mysql56"]
+    - name: "MySQL change root password for local access"
+      mysql_user : name=root login_user=root login_password="" password="{{ mysqlroot_passwd.stdout }}" host_all=yes
+      when: mysqlroot_test|succeeded
+      tags: ["mysql56"]
+    - name: "MySQL allow remote root access with password '{{ sqlpassword }}'"
+      mysql_user : name=root password="{{ sqlpassword }}" host="%" config_file=/root/.my.cnf
+      become: true
+      tags: ["mysql56", "mysql57", "dev"]
+    - name: "MySQL user '{{ baseuser }}' with password '{{ sqlpassword }}'"
+      mysql_user : name="{{ baseuser }}" password="{{ sqlpassword }}" priv="{{ baseuser }}.*:ALL"
+      become: true
+      tags: ["mysql56", "mysql57"]
+    - name: "MySQL database '{{ baseuser }}'"
+      mysql_db : encoding=utf8 name="{{ baseuser }}"
+      become: true
+      tags: ["mysql56", "mysql57"]
+    - name: "MySQL config in {{ homedir }}/.my.cnf"
+      ini_file: dest="{{ homedir }}/.my.cnf" section="client" option="{{ item.key }}" value="{{ item.value }}" create=yes
+      with_dict:
+        user: "{{ baseuser }}"
+        password: "{{ sqlpassword }}"
+        database: "{{ baseuser }}"
+      tags: ["mysql56", "mysql57"]
+    - name: "MySQL user '{{ baseuser }}' for connect from host machine"
+      mysql_user : name="{{ baseuser }}" password="{{ sqlpassword }}" priv="{{ baseuser }}.*:ALL" host="%"
+      become: true
+      tags: ["mysql56", "mysql57", "dev"]
+    - name: "MySQL listen all intrefaces (for connect from host machine)"
+      become: true
+      replace: dest=/etc/mysql/my.cnf regexp='(?i)^#?\s*bind-address\s*=.*$' replace="bind-address = 0.0.0.0"
+      notify:
+        - restart mysql
+      tags: ["mysql56", "dev"]
+    - name: "MySQL listen all intrefaces (for connect from host machine)"
+      become: true
+      replace: dest=/etc/mysql/mysql.conf.d/mysqld.cnf regexp='(?i)^#?\s*bind-address\s*=.*$' replace="bind-address = 0.0.0.0"
+      notify:
+        - restart mysql
+      tags: ["mysql57", "dev"]
+
+    # redis
     - name: "Install Redis server"
       apt: name=redis-server
+      become: true
+      tags: ["redis"]
+    - name: "Start Redis"
+      become: true
+      service: name=redis-server state=started enabled=yes
       tags: ["redis"]
 
     # all about php7
@@ -229,6 +327,12 @@
       notify:
         - restart php
       tags: ["php7_pgsql"]
+    - name: "Installing PHP 7.0 MySQL extension"
+      become: true
+      apt: name="php7.0-mysql" state=latest
+      notify:
+        - restart php
+      tags: ["php7_mysql"]
     - name: "Installing PHP 7.0 Redis extension"
       become: true
       apt: name="php7.0-redis" state=latest
@@ -464,3 +568,6 @@
     - name: restart elasticsearch
       become: true
       service: name=elasticsearch state=restarted
+    - name: restart mysql
+      become: true
+      service: name=mysql state=restarted
