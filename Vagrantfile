@@ -1,10 +1,11 @@
 Vagrant.configure(2) do |config|
   config.vm.box = "debian/contrib-jessie64"
+  config.vm.define "test" do |test|
+  end
   config.vm.hostname = "test"
   config.vm.network "forwarded_port", guest: 80, host: 8000
-  config.vm.network "forwarded_port", guest: 5432, host: 54320
-  config.vm.network "forwarded_port", guest: 9200, host: 19200
   config.vm.provider "virtualbox" do |v|
+    v.linked_clone = true
     v.memory = 1024
     v.cpus = 2
     v.customize ["setextradata", :id, "VBoxInternal2/SharedFoldersEnableSymlinksCreate/vagrant", "1"]
