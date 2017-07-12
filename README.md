@@ -34,6 +34,8 @@ Supported tags
 - `yarn` - install yarn
 - `yarn_replace_npm` - install yarn and replace npm
 - `yii2` - install fxp/composer-asset-plugin (composer required)
+- `exim` - install exim4 and configure for internet delivery
+- `sphinx` - install sphinxsearch
 
 Special tag `dev` - exclude this tag to setup production  
 

@@ -172,6 +172,38 @@
       apt: update_cache=yes
       tags: ["always"]
 
+    # fix exim
+    - name: "install exim4"
+      become: true
+      apt: name="exim4" state=present
+      tags: ["exim"]
+    - name: "remove exim config files"
+      file: path={{ item }} state=absent
+      become: true
+      with_items:
+        - "/etc/exim4/update-exim4.conf.conf"
+        - "/etc/mailname"
+      tags: ["exim"]
+    - name: "Debconf question dc_eximconfig_configtype"
+      become: true
+      debconf:
+        name: 'exim4-config'
+        question: 'exim4/dc_eximconfig_configtype'
+        value: 'internet site; mail is sent and received directly using SMTP'
+        vtype: select
+      tags: ["exim"]
+    - name: "Debconf question mailname"
+      become: true
+      debconf:
+        name: 'exim4-config'
+        question: 'exim4/mailname'
+        value: '{{ inventory_hostname }}'
+        vtype: string
+      tags: ["exim"]
+    - name: "Reconfigure package exim4-config"
+      become: true
+      command: dpkg-reconfigure -fnoninteractive exim4-config
+      tags: ["exim"]
 
     # postgresql vibes
     - name: "Installing PosrgeSQL 9.6"
@@ -289,6 +321,13 @@
       notify:
         - restart mysql
       tags: ["mysql57", "dev"]
+# this can be enabled manually for legacy code
+#    - name: "MySQL disable strict"
+#      become: true
+#      replace: dest=/usr/my.cnf regexp='(?i)^#?\s*sql_mode\s*=.*$' replace="sql_mode=NO_ENGINE_SUBSTITUTION"
+#      notify:
+#        - restart mysql
+#      tags: ["mysql56", "mysql57"]
 
     # redis
     - name: "Install Redis server"
@@ -559,6 +598,28 @@
       become: true
       tags: ["yarn_replace_npm"]
 
+    # sphinx
+    - name: "Install sphinxsearch"
+      become: true
+      apt: name="sphinxsearch" state=latest
+      tags: ["sphinx"]
+    - name: "Allow sphinxsearch to start"
+      become: true
+      lineinfile:
+        dest: /etc/default/sphinxsearch
+        state: present
+        regexp: '(?i)^#?\s*START=.*$'
+        line: 'START=yes'
+      tags: ["sphinx"]
+      notify:
+        - restart sphinxsearch
+    - name: "Copy sphinxsearch prepared config"
+      become: true
+      template: src=templates/sphinx.conf dest=/etc/sphinxsearch/sphinx.conf
+      notify:
+        - restart sphinxsearch
+      tags: ["sphinx"]
+
   handlers:
     - name: restart php
       become: true
@@ -575,3 +636,8 @@
     - name: restart mysql
       become: true
       service: name=mysql state=restarted
+    - name: restart sphinxsearch
+      become: true
+      shell: "service sphinxsearch stop && sleep 2 && service sphinxsearch start"
+      args:
+        warn: false
