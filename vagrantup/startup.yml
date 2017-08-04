@@ -7,6 +7,7 @@
     baseuser: "{{ ansible_env.USER }}"
     homedir: "{{ ansible_env.HOME }}"
     projectdir: "{{ ansible_env.HOME }}/project"
+    phpVersion: 7.1
 
   environment:
     LC_CTYPE: "{{ userlocale }}"
@@ -14,7 +15,7 @@
 
   tasks:
     - name: php started
-      service: name="php7.0-fpm" state=restarted
+      service: name="php{{ phpVersion }}-fpm" state=restarted
       become: true
       tags: ["php7"]
     - name: nginx started
@@ -29,6 +30,10 @@
       service: name=elasticsearch state=restarted
       become: true
       tags: ["elasticsearch"]
+    - name: redis-server started
+      service: name=redis-server state=restarted
+      become: true
+      tags: ["redis"]
 
 #    - name: "Test webpack.config.js exists"
 #      stat: path={{ projectdir }}/webpack.config.js

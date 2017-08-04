@@ -21,6 +21,7 @@
     homedir: "{{ ansible_env.HOME }}"
     projectdir: "{{ ansible_env.HOME }}/project"
     sqlpassword: "{{ ansible_env.USER }}"
+    phpVersion: 7.0
 
   environment:
     LC_CTYPE: "{{ userlocale }}"
@@ -33,6 +34,9 @@
     - set_fact:
         prod_env: false
       tags: ["dev", "always"]
+    - set_fact:
+        phpVersion: 7.1
+      tags: ["php71"]
 
     - name: "Additional locales"
       become: true
@@ -107,6 +111,14 @@
       become: true
       apt_repository: repo="deb http://packages.dotdeb.org jessie all" update_cache=no
       tags: ["php7", "dotdeb"]
+    - name: "Sury Repository key"
+      become: true
+      apt_key: url="https://packages.sury.org/php/apt.gpg"
+      tags: ["php71"]
+    - name: "Sury Repository"
+      become: true
+      apt_repository: repo="deb https://packages.sury.org/php/ jessie main" update_cache=no
+      tags: ["php71"]
     - name: "Repository key for PostgreSQL"
       become: true
       apt_key: url="https://www.postgresql.org/media/keys/ACCC4CF8.asc"
@@ -333,113 +345,111 @@
     - name: "Install Redis server"
       apt: name=redis-server
       become: true
-      tags: ["redis"]
-    - name: "Start Redis"
-      become: true
-      service: name=redis-server state=started enabled=yes
+      notify:
+        - restart redis-server
       tags: ["redis"]
 
     # all about php7
-    - name: "Installing PHP 7.0"
+    - name: "Installing PHP {{ phpVersion }}"
       become: true
       apt:
         name:
-          - php7.0-fpm
-          - php7.0-cli
-          - php7.0-mcrypt
-          - php7.0-readline
-          - php7.0-json
-          - php7.0-opcache
-          - php7.0-curl
-          - php7.0-gd
-          - php7.0-imagick
-          - php7.0-intl
-          - php7.0-mbstring
-          - php7.0-xml
+          - php{{ phpVersion }}-fpm
+          - php{{ phpVersion }}-cli
+          - php{{ phpVersion }}-mcrypt
+          - php{{ phpVersion }}-readline
+          - php{{ phpVersion }}-json
+          - php{{ phpVersion }}-opcache
+          - php{{ phpVersion }}-curl
+          - php{{ phpVersion }}-gd
+          - php{{ phpVersion }}-imagick
+          - php{{ phpVersion }}-intl
+          - php{{ phpVersion }}-mbstring
+          - php{{ phpVersion }}-xml
         state: latest
       notify:
         - restart php
-      tags: ["php7"]
-    - name: "Installing PHP 7.0 PG extension"
+      tags: ["php7", "php71"]
+    - name: "Installing PHP {{ phpVersion }} PG extension"
       become: true
-      apt: name="php7.0-pgsql" state=latest
+      apt: name="php{{ phpVersion }}-pgsql" state=latest
       notify:
         - restart php
       tags: ["php7_pgsql"]
-    - name: "Installing PHP 7.0 MySQL extension"
+    - name: "Installing PHP {{ phpVersion }} MySQL extension"
       become: true
-      apt: name="php7.0-mysql" state=latest
+      apt: name="php{{ phpVersion }}-mysql" state=latest
       notify:
         - restart php
       tags: ["php7_mysql"]
-    - name: "Installing PHP 7.0 Redis extension"
+    - name: "Installing PHP {{ phpVersion }} Redis extension"
       become: true
-      apt: name="php7.0-redis" state=latest
+      apt: name="php{{ phpVersion }}-redis" state=latest
       notify:
         - restart php
       tags: ["php7_redis"]
-    - name: "Installing PHP 7.0 dev extensions"
+    - name: "Installing PHP {{ phpVersion }} dev extensions"
       become: true
       apt:
         name:
-          - php7.0-xdebug
+          - php{{ phpVersion }}-xdebug
         state: latest
       notify:
         - restart php
-      tags: ["php7", "dev"]
+      tags: ["php7", "php71", "dev"]
     - name: "Fix FPM php.ini"
       become: true
-      lineinfile: dest=/etc/php/7.0/fpm/php.ini state=present regexp="{{ item.regexp }}" line="{{ item.line }}"
+      lineinfile: dest=/etc/php/{{ phpVersion }}/fpm/php.ini state=present regexp="{{ item.regexp }}" line="{{ item.line }}"
       with_items: "{{ phpinilist }}"
       notify:
         - restart php
-      tags: ["php7"]
+      tags: ["php7", "php71"]
     - name: "Fix FPM php.ini for dev envelopment"
       become: true
-      lineinfile: dest=/etc/php/7.0/fpm/php.ini state=present regexp="{{ item.regexp }}" line="{{ item.line }}"
+      lineinfile: dest=/etc/php/{{ phpVersion }}/fpm/php.ini state=present regexp="{{ item.regexp }}" line="{{ item.line }}"
       with_items: "{{ phpinilist_dev }}"
       notify:
         - restart php
-      tags: ["php7", "dev"]
+      tags: ["php7", "php71", "dev"]
     - name: "Fix FPM php.ini for prod envelopment"
       become: true
-      lineinfile: dest=/etc/php/7.0/fpm/php.ini state=present regexp="{{ item.regexp }}" line="{{ item.line }}"
+      lineinfile: dest=/etc/php/{{ phpVersion }}/fpm/php.ini state=present regexp="{{ item.regexp }}" line="{{ item.line }}"
       with_items: "{{ phpinilist_prod }}"
       notify:
         - restart php
-      tags: ["php7"]
+      tags: ["php7", "php71"]
       when: prod_env | bool
     - name: "Fix CLI php.ini"
       become: true
-      lineinfile: dest=/etc/php/7.0/cli/php.ini state=present regexp="{{ item.regexp }}" line="{{ item.line }}"
+      lineinfile: dest=/etc/php/{{ phpVersion }}/cli/php.ini state=present regexp="{{ item.regexp }}" line="{{ item.line }}"
       with_items: "{{ phpinilist }}"
-      tags: ["php7"]
+      tags: ["php7", "php71"]
     - name: "Fix CLI php.ini for dev envelopment"
       become: true
-      lineinfile: dest=/etc/php/7.0/cli/php.ini state=present regexp="{{ item.regexp }}" line="{{ item.line }}"
+      lineinfile: dest=/etc/php/{{ phpVersion }}/cli/php.ini state=present regexp="{{ item.regexp }}" line="{{ item.line }}"
       with_items: "{{ phpinilist_dev }}"
-      tags: ["php7", "dev"]
+      tags: ["php7", "php71", "dev"]
     - name: "Fix CLI php.ini for prod envelopment"
       become: true
-      lineinfile: dest=/etc/php/7.0/cli/php.ini state=present regexp="{{ item.regexp }}" line="{{ item.line }}"
+      lineinfile: dest=/etc/php/{{ phpVersion }}/cli/php.ini state=present regexp="{{ item.regexp }}" line="{{ item.line }}"
       with_items: "{{ phpinilist_prod }}"
-      tags: ["php7"]
+      tags: ["php7", "php71"]
       when: prod_env | bool
     - name: "Enable opcache"
       become: true
-      lineinfile: dest=/etc/php/7.0/fpm/php.ini state=present regexp='(?i)^;?opcache\.enable\s*=' line="opcache.enable = 1"
+      lineinfile: dest=/etc/php/{{ phpVersion }}/fpm/php.ini state=present regexp='(?i)^;?opcache\.enable\s*=' line="opcache.enable = 1"
       notify:
         - restart php
-      tags: ["php7"]
+      tags: ["php7", "php71"]
     - name: "Remove default www pool from php-fpm"
       become: true
-      file: path=/etc/php/7.0/fpm/pool.d/www.conf state=absent
+      file: path=/etc/php/{{ phpVersion }}/fpm/pool.d/www.conf state=absent
       notify:
         - restart php
-      tags: ["php7"]
+      tags: ["php7", "php71"]
     - name: "Setup new php-fpm pool for prod envelopment"
       become: true
-      ini_file: dest=/etc/php/7.0/fpm/pool.d/{{ baseuser }}.conf section={{ baseuser }} option="{{ item.key }}" value="{{ item.value }}" create=yes
+      ini_file: dest=/etc/php/{{ phpVersion }}/fpm/pool.d/{{ baseuser }}.conf section={{ baseuser }} option="{{ item.key }}" value="{{ item.value }}" create=yes
       with_dict:
         user: "{{ baseuser }}"
         group: "{{ baseuser }}"
@@ -450,11 +460,11 @@
         request_terminate_timeout: 650
       notify:
         - restart php
-      tags: ["php7"]
+      tags: ["php7", "php71"]
       when: prod_env | bool
     - name: "Edit php-fpm pool for dev envelopment"
       become: true
-      ini_file: dest=/etc/php/7.0/fpm/pool.d/{{ baseuser }}.conf section={{ baseuser }} option="{{ item.key }}" value="{{ item.value }}" create=yes
+      ini_file: dest=/etc/php/{{ phpVersion }}/fpm/pool.d/{{ baseuser }}.conf section={{ baseuser }} option="{{ item.key }}" value="{{ item.value }}" create=yes
       with_dict:
         user: "{{ baseuser }}"
         group: "{{ baseuser }}"
@@ -466,10 +476,10 @@
         request_terminate_timeout: 0
       notify:
         - restart php
-      tags: ["php7", "dev"]
+      tags: ["php7", "php71", "dev"]
     - name: "Enable Remote Xdebug"
       become: true
-      ini_file: dest=/etc/php/7.0/fpm/conf.d/20-xdebug-config.ini section=xdebug option="{{ item.key }}" value="{{ item.value }}" create=yes
+      ini_file: dest=/etc/php/{{ phpVersion }}/fpm/conf.d/20-xdebug-config.ini section=xdebug option="{{ item.key }}" value="{{ item.value }}" create=yes
       with_dict:
         xdebug.remote_enable: on
         xdebug.remote_host: "localhost"
@@ -477,17 +487,13 @@
         xdebug.remote_connect_back: on
       notify:
         - restart php
-      tags: ["php7", "dev"]
+      tags: ["php7", "php71", "dev"]
     - name: "Remove xdebug for cli"
       become: true
-      file: path=/etc/php/7.0/cli/conf.d/20-xdebug.ini state=absent
+      file: path=/etc/php/{{ phpVersion }}/cli/conf.d/20-xdebug.ini state=absent
       notify:
         - restart php
-      tags: ["php7", "dev"]
-    - name: "Start PHP7"
-      become: true
-      service: name="php7.0-fpm" state=started enabled=yes
-      tags: ["php7"]
+      tags: ["php7", "php71", "dev"]
 
     # all about nginx
     - name: "Install nginx"
@@ -524,10 +530,6 @@
       notify:
         - restart nginx
       tags: ["nginx"]
-    - name: "Start Nginx"
-      become: true
-      service: name=nginx state=started enabled=yes
-      tags: ["nginx"]
 
     # Oracle java
     - name: "Set Oracle Java licence"
@@ -556,10 +558,6 @@
       notify:
         - restart elasticsearch
       tags: ["elasticsearch", "dev"]
-    - name: "Start elasticsearch"
-      become: true
-      service: name=elasticsearch state=started enabled=yes
-      tags: ["elasticsearch"]
 
     # composer
     - name: "Is composer installed?"
@@ -623,19 +621,22 @@
   handlers:
     - name: restart php
       become: true
-      service: name=php7.0-fpm state=restarted
+      service: name=php{{ phpVersion }}-fpm state=restarted enabled=yes
     - name: restart nginx
       become: true
-      service: name=nginx state=restarted
+      service: name=nginx state=restarted enabled=yes
     - name: restart postgresql
       become: true
-      service: name=postgresql state=restarted
+      service: name=postgresql state=restarted enabled=yes
     - name: restart elasticsearch
       become: true
-      service: name=elasticsearch state=restarted
+      service: name=elasticsearch state=restarted enabled=yes
     - name: restart mysql
       become: true
-      service: name=mysql state=restarted
+      service: name=mysql state=restarted enabled=yes
+    - name: restart redis-server
+      become: true
+      service: name=redis-server state=restarted  enabled=yes
     - name: restart sphinxsearch
       become: true
       shell: "service sphinxsearch stop && sleep 2 && service sphinxsearch start"
