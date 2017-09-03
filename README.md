@@ -6,6 +6,7 @@ Can install
  * PHP 7.0 (with XDebug), composer
  * Postgresql 9.6
  * MySQL 5.6 or 5.7 (mysql repository)
+ * MariaDb 10.1 (MariaDb repository, config differs from Debian repository)
  * Elasticsearch 2.x with Java 8
  * NodeJs 6.x
  * Redis 2.8 or 3.x
@@ -23,6 +24,7 @@ Supported tags
 - `dotdeb` - add Dotdeb repository (required and auto-enabled for PHP7) 
 - `postgresql` - add postgresql repo and install Postgresql 9.6
 - `mysql56` or `mysql57` - add mysql repo and install MySQL 5.6 or 5.7 (not both same time)
+- `mariadb101` - add MariaDb repo and install MariaDb 10.1 (not same time with MySQL)
 - `redis` - install Redis server, version 2.8 or 3.x if `dotdeb` enabled 
 - `php7` - add Dotdeb repository and install PHP7.0
 - `php7_pgsql`, `php7_mysql`, `php7_redis` - install some PHP7 extensions

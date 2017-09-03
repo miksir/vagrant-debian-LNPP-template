@@ -147,6 +147,14 @@
       become: true
       apt_repository: repo="deb http://repo.mysql.com/apt/debian/ jessie mysql-5.7" state=absent update_cache=no
       tags: ["mysql56"]
+    - name: "MariaDB 10.1 repository key"
+      become: true
+      apt_key: keyserver=keyserver.ubuntu.com id=0xcbcb082a1bb943db keyring=/etc/apt/trusted.gpg.d/mariadb.gpg
+      tags: ["mariadb101"]
+    - name: "MariaDB 10.1 repository"
+      become: true
+      apt_repository: repo="deb http://mirror.mephi.ru/mariadb/repo/10.1/debian jessie main" update_cache=no
+      tags: ["mariadb101"]
     - name: "Repository key for Elasticsearch"
       become: true
       apt_key: url="https://packages.elastic.co/GPG-KEY-elasticsearch"
@@ -268,24 +276,36 @@
       become: true
       apt: name="mysql-community-server"
       tags: ["mysql56", "mysql57"]
+    - name: "Installing MariaDB 10.1"
+      become: true
+      apt: name="mariadb-server-10.1"
+      tags: ["mariadb101"]      
+    - name: "Fix characterset for MariaDB 10.1"
+      become: true
+      lineinfile: dest=/etc/mysql/conf.d/mariadb.cnf state=present regexp="{{ item.regexp }}" line="{{ item.line }}"
+      with_items:
+        - { regexp: '(?i)^#?default-character-set\s*=', line: 'default-character-set = utf8mb4' }
+        - { regexp: '(?i)^#?character-set-server\s*=', line: 'character-set-server = utf8mb4' }
+        - { regexp: '(?i)^#?collation-server\s*=', line: 'collation-server = utf8mb4_general_ci' }
+      tags: ["mariadb101"]
     - name: "MySQL package for Ansible"
       become: true
       apt: name="python-mysqldb"
-      tags: ["mysql56", "mysql57"]
+      tags: ["mysql56", "mysql57", "mariadb101"]
     - name: "Start MySQL"
       become: true
       service: name=mysql state=started enabled=yes
-      tags: ["mysql56", "mysql57"]
+      tags: ["mysql56", "mysql57", "mariadb101"]
     - name: "MySQL test empty root password"
       mysql_user : name=root login_user=root login_password=""
       ignore_errors: yes
       register: mysqlroot_test
-      tags: ["mysql56"]
+      tags: ["mysql56", "mariadb101"]
     - name: "MySQL generate root password for local access"
       shell: </dev/urandom tr -dc '1234567890!@#$%qwertyuiopQWERTYUIOPasdfghjklASDFGHJKLzxcvbnmZXCVBNM' | head -c25
       register: mysqlroot_passwd
       changed_when: false
-      tags: ["mysql56"]
+      tags: ["mysql56", "mariadb101"]
     - name: "MySQL create /root/.my.cnf file with password"
       ini_file: dest="/root/.my.cnf" section="client" option="{{ item.key }}" value="{{ item.value }}" create=yes
       with_dict:
@@ -293,40 +313,40 @@
         password: "\"{{ mysqlroot_passwd.stdout|default() }}\""
       become: true
       when: mysqlroot_test|succeeded
-      tags: ["mysql56"]
+      tags: ["mysql56", "mariadb101"]
     - name: "MySQL change root password for local access"
       mysql_user : name=root login_user=root login_password="" password="{{ mysqlroot_passwd.stdout }}" host_all=yes
       when: mysqlroot_test|succeeded
-      tags: ["mysql56"]
+      tags: ["mysql56", "mariadb101"]
     - name: "MySQL allow remote root access with password '{{ sqlpassword }}'"
       mysql_user : name=root password="{{ sqlpassword }}" host="%" config_file=/root/.my.cnf
       become: true
-      tags: ["mysql56", "mysql57", "dev"]
+      tags: ["mysql56", "mysql57", "mariadb101", "dev"]
     - name: "MySQL user '{{ baseuser }}' with password '{{ sqlpassword }}'"
       mysql_user : name="{{ baseuser }}" password="{{ sqlpassword }}" priv="{{ baseuser }}.*:ALL"
       become: true
-      tags: ["mysql56", "mysql57"]
+      tags: ["mysql56", "mysql57", "mariadb101"]
     - name: "MySQL database '{{ baseuser }}'"
       mysql_db : encoding=utf8 name="{{ baseuser }}"
       become: true
-      tags: ["mysql56", "mysql57"]
+      tags: ["mysql56", "mysql57", "mariadb101"]
     - name: "MySQL config in {{ homedir }}/.my.cnf"
       ini_file: dest="{{ homedir }}/.my.cnf" section="client" option="{{ item.key }}" value="{{ item.value }}" create=yes
       with_dict:
         user: "{{ baseuser }}"
         password: "{{ sqlpassword }}"
         database: "{{ baseuser }}"
-      tags: ["mysql56", "mysql57"]
+      tags: ["mysql56", "mysql57", "mariadb101"]
     - name: "MySQL user '{{ baseuser }}' for connect from host machine"
       mysql_user : name="{{ baseuser }}" password="{{ sqlpassword }}" priv="{{ baseuser }}.*:ALL" host="%"
       become: true
-      tags: ["mysql56", "mysql57", "dev"]
+      tags: ["mysql56", "mysql57", "mariadb101", "dev"]
     - name: "MySQL listen all intrefaces (for connect from host machine)"
       become: true
       replace: dest=/etc/mysql/my.cnf regexp='(?i)^#?\s*bind-address\s*=.*$' replace="bind-address = 0.0.0.0"
       notify:
         - restart mysql
-      tags: ["mysql56", "dev"]
+      tags: ["mysql56", "mariadb101", "dev"]
     - name: "MySQL listen all intrefaces (for connect from host machine)"
       become: true
       replace: dest=/etc/mysql/mysql.conf.d/mysqld.cnf regexp='(?i)^#?\s*bind-address\s*=.*$' replace="bind-address = 0.0.0.0"
