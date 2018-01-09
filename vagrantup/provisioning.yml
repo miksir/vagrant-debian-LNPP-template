@@ -538,6 +538,12 @@
       notify:
         - restart nginx
       tags: ["nginx", "dev"]
+    - name: "Nginx: set number of workers to 1"
+      become: true
+      lineinfile: dest=/etc/nginx/nginx.conf state=present backrefs=yes regexp="^([\s\t]*)worker_processes.+;$" line="\1worker_processes 1;"
+      notify:
+        - restart nginx
+      tags: ["nginx", "dev"]
     - name: "Nginx: enable default gzip settings"
       become: true
       replace: dest=/etc/nginx/nginx.conf regexp="^([\s\t]*)#\s+(gzip_.+)" replace="\1\2"
