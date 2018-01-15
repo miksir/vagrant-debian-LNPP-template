@@ -48,22 +48,20 @@ Startup playbook
 ----------------
 For start some daemons on boot separate playbook created: `startup.yml` 
 
-
-Project prepare playbook
----------------------------
-This playbook can install composer, npm and much more. Open and edit it.
-This playbook disabled in `Vagrantfile`. If you want to execute it, run
-`vagrant provision --provision-with=setup`
-
-
 Installation
 ------------
 - copy this template to your project
 - edit hostname in `Vagrantfile`, check and edit/remove forwarded ports
-- check `vagrantup/provisioning.yml`
-- edit `vagrantup/ansible_tags.yml`, comment/uncomment required options
+- copy `vagrantup/ansible_tags.dist.yml` to `vagrantup/ansible_tags.yml` and
+comment/uncomment required options
+- if you need some additional software - create `vagrantup/provisioning.custom.yml`, 
+you can use `vagrantup/provisioning.custom.dist.yml` as template
 - edit `vagrantup/templates/nginx.conf`
-- check `vagrantup/startup.yml`, if some services required - add it
+- if you need some additional initialization (load database, etc) - create 
+`vagrantup/update.yml` for your application, you can use `vagrantup/update.dist.yml` 
+as template
+- if you need some additional startup tasks - create `vagrantup/startup.custom.yml`,
+you can use `vagrantup/startup.yml` as example
 - `vagrant up`
 
 Symlinks check

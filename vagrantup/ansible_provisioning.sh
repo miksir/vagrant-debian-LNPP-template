@@ -8,4 +8,10 @@ if [ "$USER" != "vagrant" ]; then
     SKIPTAG="--skip-tags=dev"
 fi
 
-PYTHONUNBUFFERED=1 /usr/bin/ansible-playbook ~/project/vagrantup/$SCRIPT.yml --tags=$TAGS $SKIPTAG
+if [ -e ~/project/vagrantup/$SCRIPT.yml ]; then
+    PYTHONUNBUFFERED=1 /usr/bin/ansible-playbook ~/project/vagrantup/$SCRIPT.yml --tags=$TAGS $SKIPTAG
+fi
+
+if [ -e ~/project/vagrantup/$SCRIPT.custom.yml ]; then
+    PYTHONUNBUFFERED=1 /usr/bin/ansible-playbook ~/project/vagrantup/$SCRIPT.custom.yml --tags=$TAGS $SKIPTAG
+fi

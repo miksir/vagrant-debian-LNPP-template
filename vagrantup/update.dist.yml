@@ -1,0 +1,100 @@
+---
+- hosts: localhost
+  any_errors_fatal: true
+
+  vars:
+    userlocale: "ru_RU.UTF-8"
+    baseuser: "{{ ansible_env.USER }}"
+    homedir: "{{ ansible_env.HOME }}"
+    projectdir: "{{ ansible_env.HOME }}/project"
+    phpVersion: 7.0
+
+  environment:
+    LC_CTYPE: "{{ userlocale }}"
+    LC_COLLATE: "{{ userlocale }}"
+
+  tasks:
+    - set_fact:
+        prod_env: true
+      tags: ["always"]
+    - set_fact:
+        prod_env: false
+      tags: ["dev", "always"]
+    - set_fact:
+        phpVersion: 7.1
+      tags: ["php71"]
+
+    - name: "Test composer.json exists"
+      stat: path={{ projectdir }}/composer.json
+      register: composerjson_stat
+      tags: ["always"]
+    - debug: msg="***** Next action (composer install) can take a long time (>5 min) *****"
+      when: "composerjson_stat.stat.exists == True"
+      tags: ["always"]
+    - name: "composer install"
+      shell: "{{ homedir }}/bin/composer install --no-interaction"
+      args:
+        chdir: "{{ projectdir }}"
+      when: "composerjson_stat.stat.exists == True"
+      register: composer_update
+      changed_when: "'Nothing to install or update' not in composer_update.stderr"
+      tags: ["always"]
+
+    - name: "Test database development mysql dump exists"
+      stat: path={{ projectdir }}/vagrantup/templates/mysql.sql.gz
+      register: mysqldumpsql_stat
+      tags: ["dev", "always"]
+    - name: "Load database development mysql dump"
+      shell: "zcat {{ projectdir }}/vagrantup/templates/mysql.sql.gz | mysql"
+      args:
+        chdir: "{{ projectdir }}"
+      when: "mysqldumpsql_stat.stat.exists == True"
+      tags: ["dev", "always"]
+
+    - name: "Test database development postgresql dump exists"
+      stat: path={{ projectdir }}/vagrantup/templates/pgsql.sql.gz
+      register: pgsqldumpsql_stat
+      tags: ["dev", "always"]
+    - name: "Load database development postgresql dump"
+      shell: "zcat {{ projectdir }}/vagrantup/templates/mysql.sql.gz | psql"
+      args:
+        chdir: "{{ projectdir }}"
+      when: "pgsqldumpsql_stat.stat.exists == True"
+      tags: ["dev", "always"]
+
+#    - name: "Run database Symfony migrations"
+#      shell: "php app/console doctrine:migrations:migrate --no-interaction"
+#      args:
+#        chdir: "{{ projectdir }}"
+#      register: migrate_run
+#      changed_when: "'No migrations to execute' not in migrate_run.stdout"
+#      failed_when: false
+#      tags: ["always"]
+
+    - name: "Test package.json exists"
+      stat: path={{ projectdir }}/package.json
+      register: packagejson_stat
+      tags: ["always"]
+    - debug: msg="***** Next action (npm install) can take a long time *****"
+      when: "packagejson_stat.stat.exists == True"
+      tags: ["always"]
+    - name: "NPM install"
+      shell: "npm install"
+      args:
+        chdir: "{{ projectdir }}"
+      when: "packagejson_stat.stat.exists == True"
+      tags: ["always"]
+
+#    - name: "Test webpack.config.js exists"
+#      stat: path={{ projectdir }}/webpack.config.js
+#      register: webpackconfig_stat
+#      tags: ["always"]
+#    - name: "Run webpack for first build"
+#      shell: "{{ homedir }}/bin/webpack"
+#      args:
+#        chdir: "{{ projectdir }}"
+#      register: webpack_start
+#      when: "webpackconfig_stat.stat.exists == True"
+#      changed_when: true
+#      failed_when: 'webpack_start.rc'
+#      tags: ["always"]

@@ -1,0 +1,25 @@
+---
+- hosts: localhost
+  any_errors_fatal: true
+
+  vars:
+    userlocale: "ru_RU.UTF-8"
+    baseuser: "{{ ansible_env.USER }}"
+    homedir: "{{ ansible_env.HOME }}"
+    projectdir: "{{ ansible_env.HOME }}/project"
+    phpVersion: 7.0
+
+  environment:
+    LC_CTYPE: "{{ userlocale }}"
+    LC_COLLATE: "{{ userlocale }}"
+
+  tasks:
+    - set_fact:
+        prod_env: true
+      tags: ["always"]
+    - set_fact:
+        prod_env: false
+      tags: ["dev", "always"]
+    - set_fact:
+        phpVersion: 7.1
+      tags: ["php71"]
